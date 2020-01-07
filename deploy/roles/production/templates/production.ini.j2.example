@@ -1,0 +1,57 @@
+[DEFAULT]
+debug = true
+dsn = postgresql://db:masterkey@localhost/{{database_name}}
+
+[server:main]
+use = egg:gunicorn#main
+host = 127.0.0.1
+port = 8000
+reload = True
+timeout = 99999
+
+[app:main]
+use = egg:{{application_name}}
+redis_host = localhost
+redis_port = 6379
+redis_password = foobared
+redis_jwt_db = 1
+sqlalchemy_dsn = %(dsn)s
+is_debug = %(debug)s
+enable_logging = true
+
+[alembic]
+script_location = alembic
+file_template = %%(slug)s_%%(rev)s
+sqlalchemy.url = %(dsn)s
+
+[loggers]
+keys = root, sqlalchemy, alembic
+
+[handlers]
+keys = console
+
+[formatters]
+keys = generic
+
+[logger_root]
+level = INFO
+handlers = console
+
+[logger_sqlalchemy]
+;level = INFO
+handlers =
+qualname = sqlalchemy.engine
+
+[logger_alembic]
+level = INFO
+handlers =
+qualname = alembic
+
+[handler_console]
+class = StreamHandler
+args = (sys.stderr,)
+level = NOTSET
+formatter = generic
+
+[formatter_generic]
+format = %(asctime)-15s %(levelname)-5.5s [%(name)s] %(message)s

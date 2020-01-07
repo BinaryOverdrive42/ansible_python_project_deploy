@@ -1,0 +1,3 @@
+db_name: "db"
+db_user: "dbuser"
+db_user_password: "masterkey"

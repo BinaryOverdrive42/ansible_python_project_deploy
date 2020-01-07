@@ -1,0 +1,15 @@
+#!/bin/bash
+
+DATE=`date +%Y%m%d-%H%M%S-%Z`
+BACKUP_FOLDER=/var/lib/postgresql/backups/
+COUNT=10
+FILENAME=_{{database_name}}.dump
+
+
+FILES_COUNT=`find /var/lib/postgresql -type f -print | wc -l`
+
+if [ $FILES_COUNT -gt $COUNT ]; then
+    find $BACKUP_FOLDER -type f -mtime +30 -exec rm -f {} \;
+fi
+
+sudo -u postgres pg_dump {{database_name}} > $BACKUP_FOLDER$DATE$FILENAME

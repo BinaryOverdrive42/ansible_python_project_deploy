@@ -1,0 +1,2 @@
+application_name: "myapp"
+path: "/opt/{{ application_name }}"

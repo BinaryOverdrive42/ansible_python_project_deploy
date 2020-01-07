@@ -1,0 +1,26 @@
+server {
+        listen 80;
+        server_name {{ application_name }}.localhost;
+        client_max_body_size 3m;
+
+
+        add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+        add_header Strict-Transport-Security "max-age=31536000" always;
+
+        location / {
+                root {{ path }}/frontend/dist;
+                try_files $uri $uri/ /index.html;
+        }
+
+
+        location /api/ {
+                proxy_set_header X-Real-IP $remote_addr;
+                proxy_pass http://localhost:8000;
+        }
+
+	location /specs {
+		alias {{ path }}/backend/docs;
+		index specs.html;
+		try_files $uri $uri/ =404;
+	}
+}

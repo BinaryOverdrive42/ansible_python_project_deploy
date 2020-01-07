@@ -1,0 +1,95 @@
+- include_vars: db_connection_data.yaml
+- name: Install packages
+  apt:
+    pkg: "{{ item }}"
+    update_cache: yes
+    state: present
+  with_items:
+    - git
+    - virtualenv
+    - libpq-dev
+    - redis
+    - build-essential
+    - python3-dev
+    - libcairo2
+    - libpango-1.0-0
+    - libpangocairo-1.0-0
+    - libgdk-pixbuf2.0-0
+    - libffi-dev
+    - shared-mime-info
+    - nginx
+    - postgresql-10
+    - python3-psycopg2
+    - supervisor
+  become: true
+
+- name: Create project folder
+  file:
+    path: "{{ path }}"
+    state: directory
+    owner: www-data
+    group: www-data
+    mode: '0755'
+  become: true
+
+- name: Create database
+  postgresql_db:
+    name: "{{ db_name }}"
+  become: true
+  become_user: postgres
+
+- name: Create database user
+  postgresql_user:
+    db: "{{ db_name }}"
+    name: "{{ db_user }}"
+    password: "{{ db_user_password }}"
+    priv: "ALL"
+    encrypted: yes
+  become: true
+  become_user: postgres
+
+- name: Check current nginx config exist
+  stat: path=/etc/nginx/sites-available/{{ application_name }}.conf
+  register: nginx_config
+  become: true
+
+- name: Move current nginx config
+  command: mv /etc/nginx/sites-available/{{ application_name }}.conf /etc/nginx/sites-available/{{ application_name }}.conf.old
+  when: nginx_config.stat.exists
+  become: true
+
+- name: Push new nginx config
+  template:
+    src: nginx.{{ application_name }}.conf.j2
+    dest: /etc/nginx/sites-available/{{ application_name }}.conf
+  become: true
+
+- name: Create nginx confing link
+  file:
+    src: /etc/nginx/sites-available/{{ application_name }}.conf
+    dest: /etc/nginx/sites-enabled/{{ application_name }}.conf
+    state: link
+  become: true
+
+- name: Test nginx config
+  command: nginx -t
+  register: result
+  ignore_errors: True
+  become: true
+
+- name: Rolling back - Restore nginx config
+  command: mv /etc/nginx/sites-available/{{ application_name }}.conf.old /etc/nginx/sites-available/{{ application_name }}.conf
+  when: result is failed and nginx_config.stat.exists
+  become: true
+
+- name: Rolling back - Ending playbook
+  fail:
+    msg: "Configuration file is not valid. Please check that before re-running the playbook."
+  when: result is failed
+
+- name: Restart nginx
+  service: name=nginx state=restarted
+  become: true
+
+
+

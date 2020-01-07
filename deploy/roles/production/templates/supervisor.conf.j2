@@ -1,0 +1,7 @@
+[program:{{ application_name }}]
+command={{ backend_path }}.venv/bin/gunicorn --paste ../production.ini
+directory={{ backend_path }}
+user=www-data
+autorestart=true
+redirect_stderr=true
+loglevel=info

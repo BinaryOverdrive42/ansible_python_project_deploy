@@ -1,0 +1,10 @@
+- hosts: production
+  roles:
+    - production
+  vars_prompt:
+    - name: "gituser"
+      prompt: "Enter your git username"
+      private: no
+    - name: "gitpassword"
+      prompt: "Enter your git password"
+      private: yes

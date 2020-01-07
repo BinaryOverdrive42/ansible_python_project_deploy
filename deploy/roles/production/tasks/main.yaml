@@ -1,0 +1,122 @@
+- name: Fetch frontend repo localy
+  git:
+    repo: "{{ frontend_git_repo }}"
+    dest: "{{ temp_frontend_path }}"
+    version: master
+    update: yes
+  delegate_to: localhost
+
+- name: Setup frontend localy
+  command: "npm install"
+  args:
+    chdir: "{{ temp_frontend_path }}"
+  delegate_to: localhost
+
+- name: Build frontend localy
+  command: "npm run build"
+  args:
+    chdir: "{{ temp_frontend_path }}"
+  delegate_to: localhost
+
+- name: Fetch backend repo
+  git:
+    repo: "{{ backend_git_repo }}"
+    dest: "{{ temp_backend_path }}"
+    version: master
+    update: yes
+  become: true
+
+- name: Remove .venv dir
+  file:
+    state: absent
+    path: "{{ temp_backend_path }}.venv/"
+  become: true
+
+- name: Create .venv
+  command: "/usr/bin/virtualenv -p python{{python_version}} .venv"
+  args:
+    chdir: "{{ temp_backend_path }}"
+  become: true
+
+- name: Setup backend
+  command: ".venv/bin/python setup.py develop"
+  args:
+    chdir: "{{ temp_backend_path }}"
+  become: true
+
+- name: Create backup directory if it does not exist
+  file:
+    path: /var/lib/postgresql/backups
+    state: directory
+    mode: '0755'
+  become: yes
+
+- name: Push database backup script
+  template:
+    src: backup_script.sh.j2
+    dest: /var/lib/postgresql/backup_script.sh
+    mode: 0755
+    owner: postgres
+    group: postgres
+    backup: yes
+  become: yes
+
+- name: Run database backup
+  command: sh /var/lib/postgresql/backup_script.sh
+  become: true
+
+- name: Push production config
+  template:
+    src: production.ini.j2
+    dest: "{{ path }}production.ini"
+    mode: 0644
+    owner: www-data
+    group: www-data
+    backup: yes
+  become: yes
+
+- name: Move builded backend
+  command: "rsync -avr --progress {{temp_backend_path}} {{backend_path}} --exclude logs"
+  become: true
+
+- name: Change backend directory owner
+  file:
+    path: "{{ backend_path }}"
+    owner: www-data
+    group: www-data
+    recurse: yes
+  become: true
+
+- name: Move builded frontend
+  copy:
+    src: "{{ temp_frontend_path }}dist"
+    dest: "{{ frontend_path }}"
+    owner: www-data
+    group: www-data
+  become: true
+
+- name: Apply migrations
+  command: ".venv/bin/alembic -c ../production.ini upgrade head"
+  args:
+    chdir: "{{ backend_path }}"
+  become: true
+
+- name: Push supervisor config
+  template:
+    src: supervisor.conf.j2
+    dest: "/etc/supervisor/conf.d/{{ application_name }}.conf"
+    mode: 0644
+    backup: yes
+  become: yes
+  register: supervisor
+
+- name: Reread supervisor because config was changed
+  command: "supervisorctl reread"
+  when: supervisor.changed
+  become: true
+
+- name: Restart backend
+  supervisorctl:
+    name: "{{ application_name }}"
+    state: restarted
+  become: true
